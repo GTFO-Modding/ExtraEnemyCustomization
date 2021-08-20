@@ -7,9 +7,9 @@ namespace EECustom.Customizations.Abilities
 {
     public class LightCustom : EnemyCustomBase, IEnemySpawnedEvent
     {
-        public float Intensity = 4f;
+        public float Intensity { get; set; } = 4f;
         public Color Color { get; set; } = new Color(1.0f, 1.0f, 1.0f, 1.0f);
-        public float Range = 7f;
+        public float Range { get; set; } = 7f;
         public LightShadowResolution ShadowResolution { get; set; } = LightShadowResolution.VeryHigh;
         public LightShadows Shadows { get; set; } = LightShadows.Soft;
         public LightShape Shape { get; set; } = LightShape.Cone;
