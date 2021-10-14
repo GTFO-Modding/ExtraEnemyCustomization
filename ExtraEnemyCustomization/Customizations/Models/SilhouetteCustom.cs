@@ -25,10 +25,21 @@ namespace EECustom.Customizations.Models
 
         private static bool _MaterialCached = false;
         private static Material _SilhouetteMaterial;
+        private readonly static List<GameObject> _SilhouetteObjects = new List<GameObject>();
 
         public override string GetProcessName()
         {
             return "Silhouette";
+        }
+
+        public override void OnConfigUnloaded()
+        {
+            foreach(var obj in _SilhouetteObjects)
+            {
+                if (obj != null)
+                    GameObject.Destroy(obj);
+            }
+            _SilhouetteObjects.Clear();
         }
 
         public void OnPrefabBuilt(EnemyAgent agent)
@@ -59,6 +70,8 @@ namespace EECustom.Customizations.Models
                 newRenderer.reflectionProbeUsage = ReflectionProbeUsage.BlendProbes;
                 newRenderer.castShadows = false;
                 newRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On;
+
+                _SilhouetteObjects.Add(enemyGhost);
             }
         }
 

@@ -4,6 +4,7 @@ using EECustom.Customizations;
 using EECustom.CustomSettings;
 using EECustom.Utils;
 using Enemies;
+using GameData;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -18,6 +19,39 @@ namespace EECustom.Managers
         {
             Current = new ConfigManager();
 
+            LoadConfigs();
+            Current.GenerateBuffer();
+        }
+
+        public static void ReloadConfig()
+        {
+            Logger.Log("HOT RELOADING CONFIG!");
+
+            foreach(var config in Current._CustomizationBuffer)
+            {
+                config.OnConfigUnloaded();
+            }
+
+            Current.GenerateBuffer();
+
+            foreach (var block in GameDataBlockBase<EnemyDataBlock>.GetAllBlocks())
+            {
+                
+                var prefab = EnemyPrefabManager.GetEnemyPrefab(block.persistentID);
+                if (prefab == null)
+                    continue;
+
+                var agent = prefab.GetComponent<EnemyAgent>();
+                if (agent == null)
+                    continue;
+
+                Current.FirePrefabBuiltEvent(agent);
+            }
+            
+        }
+
+        private static void LoadConfigs()
+        {
             if (MTFOUtil.IsLoaded && MTFOUtil.HasCustomContent)
             {
                 try
@@ -34,6 +68,7 @@ namespace EECustom.Managers
                     Logger.Debug("Loading ScoutWave.json");
                     if (TryLoadConfig(BasePath, "ScoutWave.json", out ScoutWaveConfig scoutWaveConfig))
                     {
+                        CustomScoutWaveManager.ClearAll();
                         CustomScoutWaveManager.AddScoutSetting(scoutWaveConfig.Expeditions);
                         CustomScoutWaveManager.AddTargetSetting(scoutWaveConfig.TargetSettings);
                         CustomScoutWaveManager.AddWaveSetting(scoutWaveConfig.WaveSettings);
@@ -72,8 +107,6 @@ namespace EECustom.Managers
             {
                 Logger.Warning("No Custom content were found, No Customization will be applied");
             }
-
-            Current.GenerateBuffer();
         }
 
         public static bool TryLoadConfig<T>(string basePath, string fileName, out T config)

@@ -42,8 +42,8 @@ namespace EECustom
             var harmony = new Harmony("EECustomization.Harmony");
             harmony.PatchAll();
 
-            ConfigManager.Initialize();
             SpriteManager.Initialize();
+            ConfigManager.Initialize();
         }
     }
 }

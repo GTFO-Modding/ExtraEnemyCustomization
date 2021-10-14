@@ -8,7 +8,7 @@ using UnityEngine;
 
 namespace EECustom.Customizations.Models
 {
-    public class MarkerCustom : EnemyCustomBase, IEnemyPrefabBuiltEvent, IEnemySpawnedEvent
+    public class MarkerCustom : EnemyCustomBase, IEnemySpawnedEvent
     {
         public string SpriteName { get; set; } = string.Empty;
         public Color MarkerColor { get; set; } = Color.red;
@@ -20,7 +20,7 @@ namespace EECustom.Customizations.Models
         public float BlinkMaxDelay { get; set; } = 5.0f;
 
         private Sprite _Sprite = null;
-        private bool _PrespawnOnce = false;
+        private bool _LoadedOnce = false;
         private bool _HasText = false;
         private bool _TextRequiresAutoUpdate = false;
 
@@ -41,13 +41,10 @@ namespace EECustom.Customizations.Models
             {
                 _TextRequiresAutoUpdate = true;
             }
-        }
 
-        public void OnPrefabBuilt(EnemyAgent agent)
-        {
-            if (!_PrespawnOnce)
+            if (!_LoadedOnce)
             {
-                _PrespawnOnce = true;
+                _LoadedOnce = true;
 
                 if (string.IsNullOrEmpty(SpriteName))
                     return;

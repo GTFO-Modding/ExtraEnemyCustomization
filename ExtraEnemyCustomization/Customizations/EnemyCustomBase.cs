@@ -15,6 +15,12 @@ namespace EECustom.Customizations
 
         public virtual void OnConfigLoaded()
         {
+
+        }
+
+        public virtual void OnConfigUnloaded()
+        {
+
         }
 
         public abstract string GetProcessName();
