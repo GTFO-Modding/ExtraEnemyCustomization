@@ -32,6 +32,7 @@ namespace EECustom.Managers
                 config.OnConfigUnloaded();
             }
 
+            LoadConfigs();
             Current.GenerateBuffer();
 
             foreach (var block in GameDataBlockBase<EnemyDataBlock>.GetAllBlocks())
