@@ -71,14 +71,11 @@ namespace EECustom.Customizations.Models
                 }
                 var newnewMaterial = new Material(newMat);
 
-                LogError($"NoiseSkinSetting!: {swapSet.SkinNoise}");
-
                 if (!string.IsNullOrEmpty(swapSet.SkinNoiseTexture))
                 {
                     if (_tex3DDict.TryGetValue(swapSet.SkinNoiseTexture, out var tex3D))
                     {
                         newnewMaterial.SetTexture("_VolumeNoise", tex3D);
-                        LogError($"TEXTURE3D WAS APPLIED!: {swapSet.SkinNoise} {swapSet.SkinNoiseTexture}");
                     }
                     else
                     {
@@ -86,19 +83,8 @@ namespace EECustom.Customizations.Models
                     }
                 }
                 
-                
-                
                 mat.m_material = newnewMaterial;
-
                 LogVerbose(" - Replaced!");
-            }
-        }
-
-        public void OnSpawned(EnemyAgent agent)
-        {
-            foreach (var set in MaterialSets)
-            {
-
             }
         }
     }
