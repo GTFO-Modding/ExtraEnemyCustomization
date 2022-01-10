@@ -1,8 +1,4 @@
 ﻿using GTFO.API;
-using SNetwork;
-using System;
-using System.Collections.Generic;
-using System.Text;
 
 namespace EECustom.Networking
 {
@@ -15,12 +11,12 @@ namespace EECustom.Networking
 
         private bool _isSetup = false;
 
-        public void Setup()
+        public void Setup(ushort replicatorID = 0)
         {
             if (_isSetup)
                 return;
 
-            EventName = $"EEC_Networking_{typeof(T).Name}";
+            EventName = $"EEC_Networking_{typeof(T).Name}_{replicatorID}";
             NetworkAPI.RegisterEvent<T>(EventName, ReceiveClient_Callback);
             _isSetup = true;
         }

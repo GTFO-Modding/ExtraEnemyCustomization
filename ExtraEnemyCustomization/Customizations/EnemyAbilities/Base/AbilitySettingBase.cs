@@ -1,7 +1,4 @@
 ﻿using EECustom.Customizations.EnemyAbilities.Abilities;
-using System;
-using System.Collections.Generic;
-using System.Text;
 
 namespace EECustom.Customizations.EnemyAbilities
 {
@@ -9,5 +6,10 @@ namespace EECustom.Customizations.EnemyAbilities
     {
         public string AbilityName { get; set; }
         public IAbility Ability;
+
+        public bool TryCache()
+        {
+            return EnemyAbilityManager.TryGetAbility(AbilityName, out Ability);
+        }
     }
 }

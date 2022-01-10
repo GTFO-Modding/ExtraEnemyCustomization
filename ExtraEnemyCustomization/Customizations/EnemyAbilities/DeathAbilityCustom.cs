@@ -1,9 +1,6 @@
 ﻿using EECustom.Customizations.EnemyAbilities.Abilities;
-using EECustom.Extensions;
 using Enemies;
 using System;
-using System.Collections.Generic;
-using System.Text;
 using System.Threading.Tasks;
 
 namespace EECustom.Customizations.EnemyAbilities
@@ -27,7 +24,7 @@ namespace EECustom.Customizations.EnemyAbilities
         public async Task DoTriggerDelayed(IAbility ability, EnemyAgent agent, float delay)
         {
             await Task.Delay((int)Math.Round(delay * 1000.0f));
-            ability?.Trigger(agent);
+            ability?.TriggerSync(agent);
         }
     }
 

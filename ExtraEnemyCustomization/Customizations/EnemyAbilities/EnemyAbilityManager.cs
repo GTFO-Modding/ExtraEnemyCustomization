@@ -1,18 +1,24 @@
 ﻿using EECustom.Customizations.EnemyAbilities.Abilities;
 using EECustom.Events;
-using System;
+using EECustom.Networking;
+using SNetwork;
 using System.Collections.Generic;
-using System.Text;
 
 namespace EECustom.Customizations.EnemyAbilities
 {
     public static class EnemyAbilityManager
     {
+        private static ushort _syncIDBuffer = 1;
+
+        private static readonly AbilityEvent _abilityEvent = new();
         private static readonly Dictionary<string, IAbility> _abilities = new();
+        private static readonly Dictionary<ushort, IAbility> _abilityIDLookup = new();
         private static bool _allAssetLoaded = false;
 
         static EnemyAbilityManager()
         {
+            _abilityEvent.Setup();
+            _abilityEvent.OnReceive += OnReceiveEvent;
             _allAssetLoaded = AssetEvents.IsAllAssetLoaded;
             AssetEvents.AllAssetLoaded += AllAssetLoaded;
         }
@@ -38,7 +44,6 @@ namespace EECustom.Customizations.EnemyAbilities
                 Logger.Error($"Duplicated EnemyAbility Name was detected! : \"{key}\"");
                 return;
             }
-                
 
             _abilities.Add(key, ability);
         }
@@ -61,7 +66,13 @@ namespace EECustom.Customizations.EnemyAbilities
                 return;
 
             foreach (var ab in _abilities.Values)
-                ab.Setup();
+            {
+                var id = _syncIDBuffer;
+                _abilityIDLookup[id] = ab;
+                ab.Setup(id);
+
+                _syncIDBuffer++;
+            }
         }
 
         public static void Clear()
@@ -70,6 +81,75 @@ namespace EECustom.Customizations.EnemyAbilities
                 ab.Unload();
 
             _abilities.Clear();
+            _syncIDBuffer = 1;
+            _abilityIDLookup.Clear();
+            _allAssetLoaded = false;
         }
+
+        public static void SendEvent(ushort syncID, ushort enemyID, AbilityPacketType type)
+        {
+            if (!SNet.IsMaster)
+                return;
+
+            _abilityEvent.Send(new AbilityPacket()
+            {
+                Type = type,
+                SyncID = syncID,
+                EnemyID = enemyID,
+            });
+        }
+
+        private static void OnReceiveEvent(AbilityPacket packet)
+        {
+            if (_abilityIDLookup.TryGetValue(packet.SyncID, out var ability))
+            {
+                switch (packet.Type)
+                {
+                    case AbilityPacketType.DoExit:
+                        ability.Exit(packet.EnemyID);
+                        break;
+
+                    case AbilityPacketType.DoTrigger:
+                        ability.Trigger(packet.EnemyID);
+                        break;
+
+                    case AbilityPacketType.DoExitAll:
+                        ability.ExitAll();
+                        break;
+
+                    case AbilityPacketType.DoTriggerAll:
+                        ability.TriggerAll();
+                        break;
+
+                    default:
+                        Logger.Error($"PacketType was invalid: {packet.Type}");
+                        break;
+                }
+            }
+            else
+            {
+                Logger.Error($"Packet was invalid: {packet.SyncID} {packet.EnemyID} {packet.Type}");
+            }
+        }
+    }
+
+    public class AbilityEvent : SyncedEvent<AbilityPacket>
+    {
+
+    }
+
+    public struct AbilityPacket
+    {
+        public AbilityPacketType Type;
+        public ushort SyncID;
+        public ushort EnemyID;
+    }
+
+    public enum AbilityPacketType : byte
+    {
+        DoTrigger,
+        DoTriggerAll,
+        DoExit,
+        DoExitAll,
     }
 }

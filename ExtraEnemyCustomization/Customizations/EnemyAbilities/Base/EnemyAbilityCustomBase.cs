@@ -1,9 +1,7 @@
 ﻿using EECustom.Customizations.EnemyAbilities.Abilities;
 using EECustom.Extensions;
 using Enemies;
-using System;
 using System.Collections.Generic;
-using System.Text;
 
 namespace EECustom.Customizations.EnemyAbilities
 {
@@ -14,7 +12,7 @@ namespace EECustom.Customizations.EnemyAbilities
         public sealed override void OnConfigLoaded()
         {
             Abilities = CacheAbilities(Abilities);
-            OnConfigUnloadedPost();
+            OnConfigLoadedPost();
         }
 
 
@@ -23,27 +21,25 @@ namespace EECustom.Customizations.EnemyAbilities
             var settingsList = new List<T>(settings);
             foreach (var ab in settings)
             {
-                if (!EnemyAbilityManager.TryGetAbility(ab.AbilityName, out var ability))
+                if (!ab.TryCache())
                 {
                     LogError($"Key: [{ab.AbilityName}] was missing, unable to apply ability!");
                     settingsList.Remove(ab);
                     continue;
                 }
-
-                ab.Ability = ability;
             }
 
             return settingsList.ToArray();
         }
 
-        public virtual void OnConfigUnloadedPost()
+        public virtual void OnConfigLoadedPost()
         {
 
         }
 
         public void OnSpawned(EnemyAgent agent)
         {
-            foreach(var ab in Abilities)
+            foreach (var ab in Abilities)
             {
                 var newBehaviour = ab.Ability.RegisterBehaviour(agent);
                 OnBehaviourAssigned(agent, newBehaviour, ab);

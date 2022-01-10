@@ -78,7 +78,7 @@ namespace EECustom.Managers
             if (doClear)
             {
                 ClearConfigs();
-            } 
+            }
         }
 
         internal static void ClearConfigs()
@@ -214,6 +214,7 @@ namespace EECustom.Managers
             _customizationBuffer.AddRange(DetectionCustom.GetAllSettings());
             _customizationBuffer.AddRange(SpawnCostCustom.GetAllSettings());
             _customizationBuffer.AddRange(EnemyAbilityCustom.GetAllSettings());
+            _customizationBuffer.RemoveAll(x => !x.Enabled); //Remove Disabled Items
             foreach (var custom in _customizationBuffer)
             {
                 custom.OnConfigLoaded();

@@ -1,7 +1,5 @@
 ﻿using EECustom.Attributes;
 using System;
-using System.Collections.Generic;
-using System.Text;
 using UnhollowerBaseLib.Attributes;
 using UnityEngine;
 
@@ -23,6 +21,19 @@ namespace EECustom.Events
         {
         }
 
+        public static void AttatchToObject(GameObject obj, UnityEventHandler onUpdate = null, UnityEventHandler onFixedUpdate = null, UnityEventHandler onDestroyed = null)
+        {
+            var handler = obj.AddComponent<MonoBehaviourEventHandler>();
+            if (onUpdate != null)
+                handler.OnUpdate += onUpdate;
+
+            if (onFixedUpdate != null)
+                handler.OnFixedUpdate += onFixedUpdate;
+
+            if (onDestroyed != null)
+                handler.OnDestroyed += onDestroyed;
+        }
+
 #pragma warning disable IDE0051 // Remove unused private members
         private void Update()
         {
@@ -31,7 +42,6 @@ namespace EECustom.Events
 
 
         private void FixedUpdate()
-
         {
             OnFixedUpdate?.Invoke(gameObject);
         }

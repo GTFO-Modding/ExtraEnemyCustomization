@@ -1,4 +1,5 @@
-﻿using EECustom.Events;
+﻿using BepInEx.Logging;
+using EECustom.Events;
 using Enemies;
 using System.Collections.Generic;
 using UnityEngine;
@@ -28,8 +29,11 @@ namespace EECustom.Customizations.EnemyAbilities.Abilities
             }
         }
 
-        public void Setup()
+        public ushort SyncID { get; private set; }
+
+        public void Setup(ushort syncID)
         {
+            SyncID = syncID;
             OnAbilityLoaded();
         }
 
@@ -39,12 +43,24 @@ namespace EECustom.Customizations.EnemyAbilities.Abilities
             OnAbilityUnloaded();
         }
 
-        public void Trigger(EnemyAgent agent)
+        #region ABILITY CALLER
+
+        public void TriggerSync(ushort enemyID)
         {
-            if (TryGetBehaviour(agent, out var behaviour))
+            EnemyAbilityManager.SendEvent(SyncID, enemyID, AbilityPacketType.DoTrigger);
+        }
+
+        public void Trigger(ushort enemyID)
+        {
+            if (TryGetBehaviour(enemyID, out var behaviour))
             {
                 behaviour.DoTrigger();
             }
+        }
+
+        public void TriggerAllSync()
+        {
+            EnemyAbilityManager.SendEvent(SyncID, 0, AbilityPacketType.DoTriggerAll);
         }
 
         public void TriggerAll()
@@ -55,24 +71,51 @@ namespace EECustom.Customizations.EnemyAbilities.Abilities
             }
         }
 
+        public void ExitSync(ushort enemyID)
+        {
+            EnemyAbilityManager.SendEvent(SyncID, enemyID, AbilityPacketType.DoExit);
+        }
+
+        public void Exit(ushort enemyID)
+        {
+            if (TryGetBehaviour(enemyID, out var behaviour))
+            {
+                behaviour.DoExit();
+            }
+        }
+
+        public void ExitAllSync()
+        {
+            EnemyAbilityManager.SendEvent(SyncID, 0, AbilityPacketType.DoExitAll);
+        }
+
+        public void ExitAll()
+        {
+            foreach (var behaviour in _behaviours)
+            {
+                behaviour.DoExit();
+            }
+        }
+
+        #endregion ABILITY CALLER
+
         public AbilityBehaviour RegisterBehaviour(EnemyAgent agent)
         {
             var id = agent.GlobalID;
 
             var behaviour = new T();
-            behaviour.Setup(agent);
+            behaviour.Setup(this, agent);
             _behaviours.Add(behaviour);
             _isBehavioursDirty = true;
             _behaviourLookup[id] = behaviour;
 
             OnBehaviourAssigned(agent, behaviour);
 
-            var handler = agent.gameObject.AddComponent<MonoBehaviourEventHandler>();
-            handler.OnDestroyed += (GameObject _) =>
+            MonoBehaviourEventHandler.AttatchToObject(agent.gameObject, onDestroyed: (GameObject _) =>
             {
                 behaviour.Unload();
                 _behaviourLookup.Remove(id);
-            };
+            });
 
             return behaviour;
         }
@@ -87,11 +130,49 @@ namespace EECustom.Customizations.EnemyAbilities.Abilities
 
         public virtual void OnBehaviourAssigned(EnemyAgent agent, T behaviour)
         {
+
         }
 
-        public bool TryGetBehaviour(EnemyAgent agent, out AbilityBehaviour behaviour)
+        public bool TryGetBehaviour(ushort enemyID, out AbilityBehaviour behaviour)
         {
-            return _behaviourLookup.TryGetValue(agent.GlobalID, out behaviour);
+            return _behaviourLookup.TryGetValue(enemyID, out behaviour);
         }
+
+        #region LOGGING
+
+        public void LogVerbose(string str)
+        {
+            LogFormatDebug(str, true);
+        }
+
+        public void LogDev(string str)
+        {
+            LogFormatDebug(str, false);
+        }
+
+        public void LogError(string str)
+        {
+            LogFormat(LogLevel.Error, str);
+        }
+
+        public void LogWarning(string str)
+        {
+            LogFormat(LogLevel.Warning, str);
+        }
+
+        private void LogFormat(LogLevel level, string str)
+        {
+            Logger.LogInstance.Log(level, $"[{Name}] {str}");
+        }
+
+        private void LogFormatDebug(string str, bool verbose)
+        {
+            if (verbose)
+                Logger.Verbose($"[{Name}] {str}");
+            else
+                Logger.Debug($"[{Name}] {str}");
+        }
+
+        #endregion
     }
 }

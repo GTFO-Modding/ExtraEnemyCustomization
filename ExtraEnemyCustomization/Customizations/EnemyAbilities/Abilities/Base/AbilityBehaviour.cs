@@ -1,4 +1,5 @@
-﻿using EECustom.Customizations.EnemyAbilities.Events;
+﻿using BepInEx.Logging;
+using EECustom.Customizations.EnemyAbilities.Events;
 using EECustom.Events;
 using Enemies;
 using SNetwork;
@@ -6,11 +7,31 @@ using UnityEngine;
 
 namespace EECustom.Customizations.EnemyAbilities.Abilities
 {
+    public abstract class AbilityBehaviour<AB> : AbilityBehaviour where AB : class, IAbility
+    {
+        public AB Ability
+        {
+            get
+            {
+                return BaseAbility as AB;
+            }
+        }
+    }
+
     public abstract class AbilityBehaviour
     {
         public const float LAZYUPDATE_DELAY = 0.15f;
 
+        public IAbility BaseAbility { get; private set; }
         public EnemyAgent Agent { get; private set; }
+        public bool AgentDestroyed { get; private set; } = false;
+        public bool IsMasterOnlyAndClient
+        {
+            get
+            {
+                return IsHostOnlyBehaviour && !SNet.IsMaster;
+            }
+        }
 
         public bool Executing
         {
@@ -35,13 +56,18 @@ namespace EECustom.Customizations.EnemyAbilities.Abilities
         private float _lazyUpdateTimer = 0.0f;
         private bool _executing = false;
 
-        public void Setup(EnemyAgent agent)
+        public void Setup(IAbility baseAbility, EnemyAgent agent)
         {
+            BaseAbility = baseAbility;
             Agent = agent;
 
             var mbEventHandler = Agent.gameObject.AddComponent<MonoBehaviourEventHandler>();
-
             mbEventHandler.OnUpdate += Update_Del;
+            mbEventHandler.OnDestroyed += (_) =>
+            {
+                AgentDestroyed = true;
+            };
+            
             EnemyAbilitiesEvents.TakeDamage += TakeDamage_Del;
             EnemyAbilitiesEvents.Dead += Dead_Del;
             EnemyAbilitiesEvents.Hitreact += Hitreact_Del;
@@ -65,6 +91,9 @@ namespace EECustom.Customizations.EnemyAbilities.Abilities
 
         private void TakeDamage_Del(Enemies.EnemyAbilities abilities, float damage)
         {
+            if (AgentDestroyed)
+                return;
+
             if (abilities.m_agent.GlobalID == Agent.GlobalID)
             {
                 DoTakeDamage(damage);
@@ -73,6 +102,9 @@ namespace EECustom.Customizations.EnemyAbilities.Abilities
 
         private void Dead_Del(Enemies.EnemyAbilities abilities)
         {
+            if (AgentDestroyed)
+                return;
+
             if (abilities.m_agent.GlobalID == Agent.GlobalID)
             {
                 DoDead();
@@ -106,7 +138,7 @@ namespace EECustom.Customizations.EnemyAbilities.Abilities
 
         private void DoSetup()
         {
-            if (IsHostOnlyBehaviour && !SNet.IsMaster)
+            if (IsMasterOnlyAndClient)
                 return;
 
             OnSetup();
@@ -114,7 +146,7 @@ namespace EECustom.Customizations.EnemyAbilities.Abilities
 
         private void DoDead()
         {
-            if (IsHostOnlyBehaviour && !SNet.IsMaster)
+            if (IsMasterOnlyAndClient)
                 return;
 
             OnDead();
@@ -122,7 +154,7 @@ namespace EECustom.Customizations.EnemyAbilities.Abilities
 
         private void DoUpdate()
         {
-            if (IsHostOnlyBehaviour && !SNet.IsMaster)
+            if (IsMasterOnlyAndClient)
                 return;
 
             OnUpdate();
@@ -131,7 +163,7 @@ namespace EECustom.Customizations.EnemyAbilities.Abilities
 
         private void DoAbilityUpdate()
         {
-            if (Executing)
+            if (Executing && !AgentDestroyed)
             {
                 OnAbilityUpdate();
                 DoAbilityLazyUpdate();
@@ -147,29 +179,44 @@ namespace EECustom.Customizations.EnemyAbilities.Abilities
             }
         }
 
+        public void DoTriggerSync()
+        {
+            EnemyAbilityManager.SendEvent(BaseAbility.SyncID, Agent.GlobalID, AbilityPacketType.DoTrigger);
+        }
+
         public void DoTrigger()
         {
             DoEnter();
         }
 
+        public void DoEnterSync()
+        {
+            EnemyAbilityManager.SendEvent(BaseAbility.SyncID, Agent.GlobalID, AbilityPacketType.DoTrigger);
+        }
+
         public void DoEnter()
         {
-            if (IsHostOnlyBehaviour && !SNet.IsMaster)
+            if (IsMasterOnlyAndClient)
                 return;
 
-            if (Executing)
+            if (Executing || AgentDestroyed)
                 return;
 
             Executing = true;
             OnEnter();
         }
 
+        public void DoExitSync()
+        {
+            EnemyAbilityManager.SendEvent(BaseAbility.SyncID, Agent.GlobalID, AbilityPacketType.DoExit);
+        }
+
         public void DoExit()
         {
-            if (IsHostOnlyBehaviour && !SNet.IsMaster)
+            if (IsMasterOnlyAndClient)
                 return;
 
-            if (!Executing)
+            if (!Executing || AgentDestroyed)
                 return;
 
             Executing = false;
@@ -178,7 +225,7 @@ namespace EECustom.Customizations.EnemyAbilities.Abilities
 
         private void DoTakeDamage(float damage)
         {
-            if (IsHostOnlyBehaviour && !SNet.IsMaster)
+            if (IsMasterOnlyAndClient)
                 return;
 
             OnTakeDamage(damage);
@@ -186,7 +233,7 @@ namespace EECustom.Customizations.EnemyAbilities.Abilities
 
         private void DoHitreact()
         {
-            if (IsHostOnlyBehaviour && !SNet.IsMaster)
+            if (IsMasterOnlyAndClient)
                 return;
 
             OnHitreact();
@@ -194,7 +241,7 @@ namespace EECustom.Customizations.EnemyAbilities.Abilities
 
         private void DoLimbDestroyed(Dam_EnemyDamageLimb limb)
         {
-            if (IsHostOnlyBehaviour && !SNet.IsMaster)
+            if (IsMasterOnlyAndClient)
                 return;
 
             OnLimbDestroyed(limb);
@@ -245,5 +292,42 @@ namespace EECustom.Customizations.EnemyAbilities.Abilities
         }
 
         #endregion OVERRIDES
+
+        #region LOGGING
+
+        public void LogVerbose(string str)
+        {
+            LogFormatDebug(str, true);
+        }
+
+        public void LogDev(string str)
+        {
+            LogFormatDebug(str, false);
+        }
+
+        public void LogError(string str)
+        {
+            LogFormat(LogLevel.Error, str);
+        }
+
+        public void LogWarning(string str)
+        {
+            LogFormat(LogLevel.Warning, str);
+        }
+
+        private void LogFormat(LogLevel level, string str)
+        {
+            Logger.LogInstance.Log(level, $"[{BaseAbility.Name}] [{Agent.name}] {str}");
+        }
+
+        private void LogFormatDebug(string str, bool verbose)
+        {
+            if (verbose)
+                Logger.Verbose($"[{BaseAbility.Name}] [{Agent.name}] {str}");
+            else
+                Logger.Debug($"[{BaseAbility.Name}] [{Agent.name}] {str}");
+        }
+
+        #endregion
     }
 }

@@ -1,12 +1,9 @@
-﻿using Agents;
-using EECustom.Customizations.EnemyAbilities.Abilities;
+﻿using EECustom.Customizations.EnemyAbilities.Abilities;
 using EECustom.Events;
+using EECustom.Utils.JsonElements;
 using Enemies;
 using Player;
 using SNetwork;
-using System;
-using System.Collections.Generic;
-using System.Text;
 using UnityEngine;
 
 namespace EECustom.Customizations.EnemyAbilities
@@ -18,9 +15,18 @@ namespace EECustom.Customizations.EnemyAbilities
             return "BehaviourAbility";
         }
 
+        public override void OnConfigLoadedPost()
+        {
+            foreach (var abSetting in Abilities)
+            {
+                abSetting.DistanceWithLOS.ShouldCheckLOS = true;
+                abSetting.DistanceWithoutLOS.ShouldCheckLOS = false;
+            }
+        }
+
         public override void OnSpawnedPost(EnemyAgent agent)
         {
-            
+
         }
 
         public override void OnBehaviourAssigned(EnemyAgent agent, AbilityBehaviour behaviour, BehaviourAbilitySetting setting)
@@ -34,21 +40,18 @@ namespace EECustom.Customizations.EnemyAbilities
                 CooldownTimer = 0.0f
             };
 
-            var unityEventHandler = agent.gameObject.AddComponent<MonoBehaviourEventHandler>();
-            unityEventHandler.OnUpdate += (GameObject _) =>
+            MonoBehaviourEventHandler.AttatchToObject(agent.gameObject, onUpdate: (GameObject _) =>
             {
                 OnUpdate(data);
-            };
-
-            if (setting.Cooldown.InitCooldown > 0.0f)
-            {
-                data.CooldownTimer = Clock.Time + setting.Cooldown.InitCooldown;
-            }
+            });
         }
 
         private void OnUpdate(BehaviourEnemyData data)
         {
             if (Clock.Time < data.UpdateTimer)
+                return;
+
+            if (!SNet.IsMaster)
                 return;
 
             var agent = data.Agent;
@@ -57,31 +60,54 @@ namespace EECustom.Customizations.EnemyAbilities
 
             data.UpdateTimer = Clock.Time + setting.UpdateInterval;
 
-            if (!data.Setting.KeepOnDead && !data.Agent.Alive)
-                return;
-
             var canUseAbility = true;
-            canUseAbility &= data.Setting.ActiveType switch
-            {
-                AbilityActiveType.Hibernate => agent.AI.Mode == AgentMode.Hibernate,
-                AbilityActiveType.Combat => agent.AI.Mode == AgentMode.Agressive,
-                AbilityActiveType.Scout => agent.AI.Mode == AgentMode.Scout,
-                AbilityActiveType.All => agent.AI.Mode != AgentMode.Off,
-                _ => false
-            };
-            canUseAbility &= setting.Cooldown.CanUseAbility(data.CooldownTimer);
-            canUseAbility &= setting.DistanceWithLOS.CanUseAbility(behaviour.Agent, shouldCheckLOS: true);
-            canUseAbility &= setting.DistanceWithoutLOS.CanUseAbility(behaviour.Agent, shouldCheckLOS: false);
+            canUseAbility &= data.Setting.KeepOnDead || data.Agent.Alive;
+            canUseAbility &= data.Setting.AllowedMode.IsMatch(agent);
 
-            if (!canUseAbility)
-                return;
-
-            if (setting.Cooldown.Enabled)
+            var hasLos = false;
+            var sqrDistance = float.MaxValue;
+            for (int i = 0; i < PlayerManager.PlayerAgentsInLevel.Count; i++)
             {
-                data.CooldownTimer = Clock.Time + setting.Cooldown.Cooldown;
+                var playerAgent = PlayerManager.PlayerAgentsInLevel[i];
+                var tempDistance = (agent.EyePosition - playerAgent.EyePosition).sqrMagnitude;
+                if (sqrDistance >= tempDistance)
+                {
+                    sqrDistance = tempDistance;
+                    hasLos = !Physics.Linecast(agent.EyePosition, playerAgent.EyePosition, LayerManager.MASK_WORLD);
+                }
             }
 
-            behaviour.DoTrigger();
+            if (sqrDistance == float.MaxValue)
+            {
+                hasLos = false;
+            }
+
+            var distance = Mathf.Sqrt(sqrDistance);
+            var distSettingToUse = hasLos ? setting.DistanceWithLOS : setting.DistanceWithoutLOS;
+            canUseAbility &= distSettingToUse.CanUseAbility(hasLos, distance);
+
+            if (!canUseAbility)
+            {
+                if (setting.ForceExitOnConditionMismatch || behaviour.Executing)
+                {
+                    behaviour.DoExitSync();
+                }
+                return;
+            }
+
+            if (setting.Cooldown.Enabled && setting.Cooldown.CanUseAbility(data.CooldownTimer))
+            {
+                if (!data.HasInitialTimerDone)
+                {
+                    data.CooldownTimer = Clock.Time + setting.Cooldown.InitCooldown;
+                    data.HasInitialTimerDone = true;
+                    return;
+                }
+                else
+                    data.CooldownTimer = Clock.Time + setting.Cooldown.Cooldown;
+
+                behaviour.DoTriggerSync();
+            }
         }
     }
 
@@ -92,15 +118,17 @@ namespace EECustom.Customizations.EnemyAbilities
         public BehaviourAbilitySetting Setting;
         public float UpdateTimer = 0.0f;
         public float CooldownTimer = 0.0f;
+        public bool HasInitialTimerDone = false;
     }
 
     public class BehaviourAbilitySetting : AbilitySettingBase
     {
         public float UpdateInterval { get; set; } = 0.15f;
-        public AbilityActiveType ActiveType { get; set; } = AbilityActiveType.Combat;
+        public AgentModeTarget AllowedMode { get; set; } = AgentModeTarget.None;
         public bool KeepOnDead { get; set; } = false;
         public DistanceSetting DistanceWithLOS { get; set; } = new();
         public DistanceSetting DistanceWithoutLOS { get; set; } = new();
+        public bool ForceExitOnConditionMismatch { get; set; } = false;
         public CooldownSetting Cooldown { get; set; } = new();
     }
 
@@ -133,7 +161,9 @@ namespace EECustom.Customizations.EnemyAbilities
         public float Min { get; set; } = 0.0f;
         public float Max { get; set; } = 1.0f;
 
-        public bool CanUseAbility(EnemyAgent agent, bool shouldCheckLOS, bool mismatchingLOSsettingResult = true)
+        public bool ShouldCheckLOS = false;
+
+        public bool CanUseAbility(bool hasLosOnTarget, float distanceToClosestTarget)
         {
             switch (Mode)
             {
@@ -143,48 +173,13 @@ namespace EECustom.Customizations.EnemyAbilities
                     return false;
             }
 
-            var hasLos = false;
-            var distance = float.MaxValue;
-            if (agent.AI.Mode == AgentMode.Agressive)
-            {
-                if (!agent.AI.IsTargetValid)
-                    return false;
+            if (ShouldCheckLOS != hasLosOnTarget)
+                return true;
 
-                hasLos = agent.AI.Target.m_hasLineOfSight;
-                distance = agent.AI.Target.m_distance;
-            }
-            else
-            {
-                for (int i = 0; i < SNet.Slots.SlottedPlayers.Count; i++)
-                {
-                    SNet_Player snet_Player = SNet.Slots.SlottedPlayers[i];
-
-                    var iPlayerAgent = snet_Player.PlayerAgent;
-                    if (iPlayerAgent == null)
-                        continue;
-
-                    var playerAgent = iPlayerAgent.Cast<PlayerAgent>();
-                    var tempDistance = Vector3.Distance(agent.EyePosition, playerAgent.EyePosition);
-                    if (distance >= tempDistance)
-                    {
-                        distance = tempDistance;
-                        hasLos = !Physics.Linecast(agent.EyePosition, playerAgent.EyePosition, LayerManager.MASK_WORLD);
-                    }
-                }
-
-                if (distance == float.MaxValue)
-                {
-                    return false;
-                }
-            }
-
-            if (shouldCheckLOS != hasLos)
-                return mismatchingLOSsettingResult;
-
-            if (distance < Min)
+            if (distanceToClosestTarget < Min)
                 return false;
 
-            if (distance > Max)
+            if (distanceToClosestTarget > Max)
                 return false;
 
             return true;
