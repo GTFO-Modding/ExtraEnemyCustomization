@@ -11,7 +11,7 @@ using Player;
 
 namespace EECustom.Customizations.Abilities
 {
-    public class BleedAttackCustom : EnemyCustomBase
+    public sealed class BleedAttackCustom : EnemyCustomBase
     {
         public BleedSetting MeleeData { get; set; } = new();
         public BleedSetting TentacleData { get; set; } = new();
@@ -26,7 +26,7 @@ namespace EECustom.Customizations.Abilities
             LocalPlayerDamageEvents.MeleeDamage += OnMelee;
             LocalPlayerDamageEvents.TentacleDamage += OnTentacle;
 
-            if (ConfigManager.Current.AbilityCustom.CanMediStopBleeding)
+            if (ConfigManager.Current.Global.CanMediStopBleeding)
                 ResourcePackEvents.ReceiveMedi += RecieveMedi;
         }
 
@@ -35,7 +35,7 @@ namespace EECustom.Customizations.Abilities
             LocalPlayerDamageEvents.MeleeDamage -= OnMelee;
             LocalPlayerDamageEvents.TentacleDamage -= OnTentacle;
 
-            if (ConfigManager.Current.AbilityCustom.CanMediStopBleeding)
+            if (ConfigManager.Current.Global.CanMediStopBleeding)
                 ResourcePackEvents.ReceiveMedi -= RecieveMedi;
         }
 
