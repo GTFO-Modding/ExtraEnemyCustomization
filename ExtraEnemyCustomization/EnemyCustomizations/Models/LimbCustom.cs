@@ -68,7 +68,7 @@ namespace EEC.EnemyCustomizations.Models
                     case LimbDamageType.Weakspot:
                     case LimbDamageType.WeakspotCustom:
                         multi = isCustom ? limbCustomData.CustomMulti : healthData.WeakspotDamageMulti;
-                        modifier.SetMulti(eLimbDamageType.Weakspot, armor: multi, weakspot: 1.0f);
+                        modifier.SetMulti(eLimbDamageType.Weakspot, armor: 1.0f, weakspot: multi);
                         break;
                 }
             }
